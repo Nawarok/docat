@@ -95,9 +95,8 @@ def tag(project: str, version: str, new_tag: str, response: Response):
 
     if create_symlink(version, destination):
         return ApiResponse(message=f"Tag {new_tag} -> {version} successfully created")
-    else:
-        response.status_code = status.HTTP_409_CONFLICT
-        return ApiResponse(message=f"Tag {new_tag} would overwrite an existing version!")
+    response.status_code = status.HTTP_409_CONFLICT
+    return ApiResponse(message=f"Tag {new_tag} would overwrite an existing version!")
 
 
 @app.get(
@@ -125,12 +124,10 @@ def claim(project: str, db: TinyDB = Depends(get_db)):
 def delete(project: str, version: str, response: Response, docat_api_key: str = Header(None), db: TinyDB = Depends(get_db)):
     token_status = check_token_for_project(db, docat_api_key, project)
     if token_status.valid:
-        message = remove_docs(project, version)
-        if message:
-            response.status_code = status.HTTP_404_NOT_FOUND
-            return ApiResponse(message=message)
-        else:
+        if not (message := remove_docs(project, version)):
             return ApiResponse(message=f"Successfully deleted version '{version}'")
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return ApiResponse(message=message)
     else:
         response.status_code = status.HTTP_401_UNAUTHORIZED
         return ApiResponse(message=token_status.reason)
@@ -141,14 +138,16 @@ def check_token_for_project(db, token, project) -> TokenStatus:
     table = db.table("claims")
     result = table.search(Project.name == project)
 
-    if result and token:
-        token_hash = calculate_token(token, bytes.fromhex(result[0]["salt"]))
-        if result[0]["token"] == token_hash:
-            return TokenStatus(True)
-        else:
-            return TokenStatus(False, f"Docat-Api-Key token is not valid for {project}")
-    else:
+    if not result or not token:
         return TokenStatus(False, f"Please provide a header with a valid Docat-Api-Key token for {project}")
+    token_hash = calculate_token(token, bytes.fromhex(result[0]["salt"]))
+    return (
+        TokenStatus(True)
+        if result[0]["token"] == token_hash
+        else TokenStatus(
+            False, f"Docat-Api-Key token is not valid for {project}"
+        )
+    )
 
 
 # serve_local_docs for local testing without a nginx
