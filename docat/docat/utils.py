@@ -79,27 +79,26 @@ def remove_docs(project, version):
         version (str): project version
     """
     docs = UPLOAD_FOLDER / project / version
-    if docs.exists():
-        # remove the requested version
-        # rmtree can not remove a symlink
-        if docs.is_symlink():
-            docs.unlink()
-        else:
-            shutil.rmtree(docs)
-
-        # remove dead symlinks
-        for link in (s for s in docs.parent.iterdir() if s.is_symlink()):
-            if not link.resolve().exists():
-                link.unlink()
-
-        # remove empty projects
-        if not [d for d in docs.parent.iterdir() if d.is_dir()]:
-            docs.parent.rmdir()
-            nginx_config = NGINX_CONFIG_PATH / f"{project}-doc.conf"
-            if nginx_config.exists():
-                nginx_config.unlink()
-    else:
+    if not docs.exists():
         return f"Could not find version '{docs}'"
+    # remove the requested version
+    # rmtree can not remove a symlink
+    if docs.is_symlink():
+        docs.unlink()
+    else:
+        shutil.rmtree(docs)
+
+    # remove dead symlinks
+    for link in (s for s in docs.parent.iterdir() if s.is_symlink()):
+        if not link.resolve().exists():
+            link.unlink()
+
+    # remove empty projects
+    if not [d for d in docs.parent.iterdir() if d.is_dir()]:
+        docs.parent.rmdir()
+        nginx_config = NGINX_CONFIG_PATH / f"{project}-doc.conf"
+        if nginx_config.exists():
+            nginx_config.unlink()
 
 
 def calculate_token(password, salt):
